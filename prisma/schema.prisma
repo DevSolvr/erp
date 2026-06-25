@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("COLLABORATOR")
+  avatar    String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks         Task[]
+  projectAccess ProjectAccess[]
+  comments      Comment[]
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  company   String?
+  website   String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects Project[]
+}
+
+model Project {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  status        String    @default("PLANNING")
+  priority      String    @default("MEDIUM")
+  startDate     DateTime?
+  endDate       DateTime?
+  budget        Float?
+  spent         Float?    @default(0)
+  progress      Int       @default(0)
+  techStack     String?
+  color         String    @default("#10d9a0")
+  clientId      String?
+  portalToken   String?   @unique
+  portalEnabled Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  client        Client?         @relation(fields: [clientId], references: [id])
+  tasks         Task[]
+  projectAccess ProjectAccess[]
+  transactions  Transaction[]
+  quotes        Quote[]
+  orders        Order[]
+  contracts     Contract[]
+  secrets       ProjectSecret[]
+  updates       ProjectUpdate[]
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  status      String    @default("TODO")
+  priority    String    @default("MEDIUM")
+  dueDate     DateTime?
+  projectId   String
+  assigneeId  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?     @relation(fields: [assigneeId], references: [id])
+  comments Comment[]
+}
+
+model ProjectAccess {
+  id        String @id @default(cuid())
+  userId    String
+  projectId String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  taskId    String
+  authorId  String
+  createdAt DateTime @default(now())
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+}
+
+model Transaction {
+  id          String    @id @default(cuid())
+  description String
+  amount      Float
+  type        String
+  subtype     String?
+  clientName  String?
+  reason      String?
+  projectId   String?
+  category    String?
+  date        DateTime  @default(now())
+  dueDate     DateTime?
+  isPaid      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  project Project? @relation(fields: [projectId], references: [id])
+}
+
+model ProjectSecret {
+  id        String   @id @default(cuid())
+  projectId String
+  label     String
+  value     String
+  category  String   @default("OTHER")
+  notes     String?
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ProjectUpdate {
+  id        String   @id @default(cuid())
+  projectId String
+  title     String
+  content   String
+  isPublic  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model AgendaEvent {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  date        DateTime
+  endDate     DateTime?
+  visibility  String    @default("ALL") // ALL | EMPLOYEES | EXTERNAL | PERSONAL
+  color       String    @default("#10d9a0")
+  createdById String
+  createdAt   DateTime  @default(now())
+}
+
+model VaultItem {
+  id        String   @id @default(cuid())
+  label     String
+  value     String
+  category  String   @default("OTHER")
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ── Commercial ────────────────────────────────────────────────────
+
+model QuoteItem {
+  id          String @id @default(cuid())
+  description String
+  quantity    Float  @default(1)
+  unitPrice   Float
+  quoteId     String
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+}
+
+model Quote {
+  id          String    @id @default(cuid())
+  number      String    @unique
+  title       String
+  clientName  String
+  clientEmail String?
+  projectId   String?
+  status      String    @default("DRAFT")
+  notes       String?
+  validUntil  DateTime?
+  total       Float     @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project   Project?    @relation(fields: [projectId], references: [id])
+  items     QuoteItem[]
+  orders    Order[]
+  contracts Contract[]
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  number      String   @unique
+  title       String
+  clientName  String
+  projectId   String?
+  quoteId     String?
+  status      String   @default("PENDING")
+  description String?
+  total       Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project   Project?   @relation(fields: [projectId], references: [id])
+  quote     Quote?     @relation(fields: [quoteId], references: [id])
+  contracts Contract[]
+}
+
+model Contract {
+  id          String    @id @default(cuid())
+  number      String    @unique
+  title       String
+  clientName  String
+  projectId   String?
+  quoteId     String?
+  orderId     String?
+  status      String    @default("DRAFT")
+  value       Float     @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  content     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project Project? @relation(fields: [projectId], references: [id])
+  quote   Quote?   @relation(fields: [quoteId], references: [id])
+  order   Order?   @relation(fields: [orderId], references: [id])
+}
